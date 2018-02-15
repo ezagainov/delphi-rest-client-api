@@ -9,8 +9,11 @@ uses
 
 type
   ERestClientException = class(Exception);
+
   EInvalidHttpConnectionConfiguration = class(ERestClientException);
+
   ECustomCreateConnectionException = class(ERestClientException);
+
   EInactiveConnection = class(ERestClientException);
 
 {$IFNDEF HAS_ENOTSUPPORTED}
@@ -18,9 +21,11 @@ type
 {$ENDIF}
 
 {$IFNDEF HAS_ENOTIMPLEMENTED}
+
   ENotImplemented = class(Exception);
 {$ENDIF}
 
 implementation
 
 end.
+

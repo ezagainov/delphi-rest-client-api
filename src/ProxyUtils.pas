@@ -2,25 +2,26 @@ unit ProxyUtils;
 
 interface
 
-  function ProxyActive: Boolean;
-  function GetProxyServer: string;
-  function GetProxyOverride: string;
-  function GetProxyServerIP: string;
-  function GetProxyServerPort: Integer;
+function ProxyActive: Boolean;
+
+function GetProxyServer: string;
+
+function GetProxyOverride: string;
+
+function GetProxyServerIP: string;
+
+function GetProxyServerPort: Integer;
 
 implementation
 
 uses
-  SysUtils,
-  Registry,
-  Windows;
+  SysUtils, Registry, Windows;
 
 const
   INTERNET_SETTINGS = 'Software\Microsoft\Windows\CurrentVersion\Internet Settings';
   PROXY_ENABLED = 'ProxyEnable';
   PROXY_SERVER = 'ProxyServer';
   PROXY_OVERRIDE = 'ProxyOverride';
-
 
 function ReadStringRegistryValue(const Value: string): string;
 var
@@ -77,7 +78,7 @@ begin
     Exit;
   end;
 
-  Result := Copy(ProxyServer, 1, Pos(':', ProxyServer)-1);
+  Result := Copy(ProxyServer, 1, Pos(':', ProxyServer) - 1);
 end;
 
 function GetProxyServerPort: Integer;
@@ -85,7 +86,8 @@ var
   ProxyServer: string;
 begin
   ProxyServer := GetProxyServer;
-  Result := StrToIntDef(Copy(ProxyServer,  Pos(':', ProxyServer)+1, length(ProxyServer)-1), 0);
+  Result := StrToIntDef(Copy(ProxyServer, Pos(':', ProxyServer) + 1, length(ProxyServer) - 1), 0);
 end;
 
 end.
+

@@ -6,7 +6,8 @@ procedure Register;
 
 implementation
 
-uses Classes, RestClient;
+uses
+  Classes, RestClient;
 
 procedure Register;
 begin
@@ -14,3 +15,4 @@ begin
 end;
 
 end.
+

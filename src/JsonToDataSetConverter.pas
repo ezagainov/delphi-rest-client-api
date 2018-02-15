@@ -2,22 +2,20 @@ unit JsonToDataSetConverter;
 
 interface
 
-uses DB, DBClient, SuperObject;
+uses
+  DB, DBClient, SuperObject;
 
 type
   TJsonToDataSetConverter = class
   private
     class procedure AppendRecord(ADataSet: TDataSet; AObject: ISuperObject);
     class procedure SetFieldValue(AField: TField; AValue: ISuperObject);
-
     class procedure ExtractFields(ADataSet: TDataSet; AObject: ISuperObject);
-
     class function SuperTypeToFieldType(ASuperType: TSuperType): TFieldType;
     class function SuperTypeToFieldSize(ASuperType: TSuperType): Integer;
   public
-    class procedure UnMarshalToDataSet(ADataSet: TDataSet; AJson: string);overload;
-    class procedure UnMarshalToDataSet(ADataSet: TDataSet; AObject: ISuperObject);overload;
-
+    class procedure UnMarshalToDataSet(ADataSet: TDataSet; AJson: string); overload;
+    class procedure UnMarshalToDataSet(ADataSet: TDataSet; AObject: ISuperObject); overload;
     class function CreateDataSetMetadata(AJson: string): TClientDataSet; overload;
     class function CreateDataSetMetadata(AObject: ISuperObject): TClientDataSet; overload;
   end;
@@ -26,9 +24,10 @@ implementation
 
 { TJsonToDataSetConverter }
 
-uses DataSetUtils;
+uses
+  DataSetUtils;
 
-class procedure TJsonToDataSetConverter.AppendRecord(ADataSet: TDataSet;AObject: ISuperObject);
+class procedure TJsonToDataSetConverter.AppendRecord(ADataSet: TDataSet; AObject: ISuperObject);
 var
   vField: TField;
   vIterator: TSuperObjectIter;
@@ -83,7 +82,7 @@ begin
   Result.CreateDataSet;
 end;
 
-class procedure TJsonToDataSetConverter.ExtractFields(ADataSet: TDataSet;AObject: ISuperObject);
+class procedure TJsonToDataSetConverter.ExtractFields(ADataSet: TDataSet; AObject: ISuperObject);
 var
   vIterator: TSuperObjectIter;
   vNestedField: TDataSetField;
@@ -114,22 +113,27 @@ begin
   end;
 end;
 
-class procedure TJsonToDataSetConverter.SetFieldValue(AField: TField;AValue: ISuperObject);
+class procedure TJsonToDataSetConverter.SetFieldValue(AField: TField; AValue: ISuperObject);
 var
   vFieldName: string;
   vNestedDataSet: TDataSet;
 begin
   vFieldName := AField.FieldName;
   case AField.DataType of
-    ftSmallint, ftInteger, ftWord, ftLargeint: AField.AsInteger := AValue.AsInteger;
-    ftFloat, ftCurrency, ftBCD, ftFMTBcd: AField.AsFloat := AValue.AsDouble;
-    ftBoolean: AField.AsBoolean := AValue.AsBoolean;
-    ftDate, ftTime, ftDateTime, ftTimeStamp: AField.AsDateTime := AValue.AsDouble;
-    ftDataSet:  begin
-                  vNestedDataSet := TDataSetField(AField).NestedDataSet;
+    ftSmallint, ftInteger, ftWord, ftLargeint:
+      AField.AsInteger := AValue.AsInteger;
+    ftFloat, ftCurrency, ftBCD, ftFMTBcd:
+      AField.AsFloat := AValue.AsDouble;
+    ftBoolean:
+      AField.AsBoolean := AValue.AsBoolean;
+    ftDate, ftTime, ftDateTime, ftTimeStamp:
+      AField.AsDateTime := AValue.AsDouble;
+    ftDataSet:
+      begin
+        vNestedDataSet := TDataSetField(AField).NestedDataSet;
 
-                  UnMarshalToDataSet(vNestedDataSet, AValue);
-                end;
+        UnMarshalToDataSet(vNestedDataSet, AValue);
+      end;
   else
     AField.AsString := AValue.AsString;
   end;
@@ -148,19 +152,26 @@ end;
 class function TJsonToDataSetConverter.SuperTypeToFieldType(ASuperType: TSuperType): TFieldType;
 begin
   case ASuperType of
-    stBoolean: Result := ftBoolean;
-    stDouble: Result := ftFloat;
-    stCurrency: Result := ftCurrency;
-    stInt: Result := ftInteger;
-    stObject: Result := ftDataSet;
-    stArray: Result := ftDataSet;
-    stString: Result := ftString;
+    stBoolean:
+      Result := ftBoolean;
+    stDouble:
+      Result := ftFloat;
+    stCurrency:
+      Result := ftCurrency;
+    stInt:
+      Result := ftInteger;
+    stObject:
+      Result := ftDataSet;
+    stArray:
+      Result := ftDataSet;
+    stString:
+      Result := ftString;
   else
     Result := ftUnknown;
   end;
 end;
 
-class procedure TJsonToDataSetConverter.UnMarshalToDataSet(ADataSet: TDataSet;AObject: ISuperObject);
+class procedure TJsonToDataSetConverter.UnMarshalToDataSet(ADataSet: TDataSet; AObject: ISuperObject);
 var
   i: Integer;
   vArray: TSuperArray;
@@ -171,7 +182,7 @@ begin
     begin
       vArray := AObject.AsArray;
 
-      for I := 0 to vArray.Length-1 do
+      for i := 0 to vArray.Length - 1 do
       begin
         AppendRecord(ADataSet, vArray.O[i]);
       end;
@@ -197,3 +208,4 @@ begin
 end;
 
 end.
+

@@ -1,17 +1,20 @@
 unit RestJsonUtils;
-
+
 interface
 
 {$I DelphiRest.inc}
 
-uses {$IFDEF SUPPORTS_GENERICS}RestJsonGenerics, {$ENDIF}
-     {$IFDEF USE_SUPER_OBJECT}RestJsonOldRTTI, {$ENDIF}
+uses 
+     {$IFDEF USE_SUPER_OBJECT} RTTI.JsonMarshaling, {$ENDIF}
      SysUtils, DateUtils, TypInfo;
 
 type
   EJsonInvalidValue = class(Exception);
+
   EJsonInvalidValueForField = class(Exception);
+
   EJsonInvalidSyntax = class(Exception);
+
   ENoSerializableClass = class(Exception)
   public
     constructor Create(AClass: TClass);
@@ -22,25 +25,29 @@ type
     class function Marshal(entity: TObject): string;
 
     {$IFDEF SUPPORTS_GENERICS}
-    class function UnMarshal<T>(AJsonText: String): T;overload;
+    class function UnMarshal<T>(AJsonText: string): T; overload;
     {$ENDIF}
-    class function UnMarshal(AClassType: TClass; AJsonText: String): TObject;overload;
+    class function UnMarshal(AClassType: TClass; AJsonText: string): TObject; overload;
   end;
 
 function JavaToDelphiDateTime(const dt: int64): TDateTime;
+
 function DelphiToJavaDateTime(const dt: TDateTime): int64;
-function ISO8601DateToJavaDateTime(const str: String; var ms: Int64): Boolean;
+
+function ISO8601DateToJavaDateTime(const str: string; var ms: Int64): Boolean;
+
 function ISO8601DateToDelphiDateTime(const str: string; var dt: TDateTime): Boolean;
+
 function DelphiDateTimeToISO8601Date(dt: TDateTime): string;
 
 implementation
 
 {$IFNDEF MACOS}
-uses Windows;
+uses
+  Windows;
 
 {$IFDEF WINDOWSNT_COMPATIBILITY}
-function DayLightCompareDate(const date: PSystemTime;
-  const compareDate: PSystemTime): Integer;
+function DayLightCompareDate(const date: PSystemTime; const compareDate: PSystemTime): Integer;
 var
   limit_day, dayinsecs, weekofmonth: Integer;
   First: Word;
@@ -69,26 +76,26 @@ begin
     First := (6 + compareDate^.wDayOfWeek - date^.wDayOfWeek + date^.wDay) mod 7 + 1;
     limit_day := First + 7 * (weekofmonth - 1);
     (* check needed for the 5th weekday of the month *)
-    if (limit_day > MonthDays[(date^.wMonth=2) and IsLeapYear(date^.wYear)][date^.wMonth]) then
+    if (limit_day > MonthDays[(date^.wMonth = 2) and IsLeapYear(date^.wYear)][date^.wMonth]) then
       dec(limit_day, 7);
   end
   else
     limit_day := compareDate^.wDay;
 
   (* convert to seconds *)
-  limit_day := ((limit_day * 24  + compareDate^.wHour) * 60 + compareDate^.wMinute ) * 60;
-  dayinsecs := ((date^.wDay * 24  + date^.wHour) * 60 + date^.wMinute ) * 60 + date^.wSecond;
+  limit_day := ((limit_day * 24 + compareDate^.wHour) * 60 + compareDate^.wMinute) * 60;
+  dayinsecs := ((date^.wDay * 24 + date^.wHour) * 60 + date^.wMinute) * 60 + date^.wSecond;
   (* and compare *)
 
   if dayinsecs < limit_day then
-    Result :=  -1 else
-    if dayinsecs > limit_day then
-      Result :=  1 else
-      Result :=  0; (* date is equal to the date limit. *)
+    Result := -1
+  else if dayinsecs > limit_day then
+    Result := 1
+  else
+    Result := 0; (* date is equal to the date limit. *)
 end;
 
-function CompTimeZoneID(const pTZinfo: PTimeZoneInformation;
-  lpFileTime: PFileTime; islocal: Boolean): LongWord;
+function CompTimeZoneID(const pTZinfo: PTimeZoneInformation; lpFileTime: PFileTime; islocal: Boolean): LongWord;
 var
   ret: Integer;
   beforeStandardDate, afterDaylightDate: Boolean;
@@ -103,12 +110,7 @@ begin
     (* if year is 0 then date is in day-of-week format, otherwise
      * it's absolute date.
      *)
-    if ((pTZinfo^.StandardDate.wMonth = 0) or
-        ((pTZinfo^.StandardDate.wYear = 0) and
-        ((pTZinfo^.StandardDate.wDay < 1) or
-        (pTZinfo^.StandardDate.wDay > 5) or
-        (pTZinfo^.DaylightDate.wDay < 1) or
-        (pTZinfo^.DaylightDate.wDay > 5)))) then
+    if ((pTZinfo^.StandardDate.wMonth = 0) or ((pTZinfo^.StandardDate.wYear = 0) and ((pTZinfo^.StandardDate.wDay < 1) or (pTZinfo^.StandardDate.wDay > 5) or (pTZinfo^.DaylightDate.wDay < 1) or (pTZinfo^.DaylightDate.wDay > 5)))) then
     begin
       SetLastError(ERROR_INVALID_PARAMETER);
       Result := TIME_ZONE_ID_INVALID;
@@ -152,29 +154,30 @@ begin
     afterDaylightDate := ret >= 0;
 
     Result := TIME_ZONE_ID_STANDARD;
-    if( pTZinfo^.DaylightDate.wMonth < pTZinfo^.StandardDate.wMonth ) then
+    if (pTZinfo^.DaylightDate.wMonth < pTZinfo^.StandardDate.wMonth) then
     begin
       (* Northern hemisphere *)
-      if( beforeStandardDate and afterDaylightDate) then
+      if (beforeStandardDate and afterDaylightDate) then
         Result := TIME_ZONE_ID_DAYLIGHT;
-    end else    (* Down south *)
-      if( beforeStandardDate or afterDaylightDate) then
-        Result := TIME_ZONE_ID_DAYLIGHT;
-  end else
+    end
+    else    (* Down south *)
+if (beforeStandardDate or afterDaylightDate) then
+      Result := TIME_ZONE_ID_DAYLIGHT;
+  end
+  else
     (* No transition date *)
     Result := TIME_ZONE_ID_UNKNOWN;
 end;
 
-function GetTimezoneBias(const pTZinfo: PTimeZoneInformation;
-  lpFileTime: PFileTime; islocal: Boolean; pBias: PLongint): Boolean;
+function GetTimezoneBias(const pTZinfo: PTimeZoneInformation; lpFileTime: PFileTime; islocal: Boolean; pBias: PLongint): Boolean;
 var
   bias: LongInt;
   tzid: LongWord;
 begin
-  bias := pTZinfo^.Bias;
+  bias := pTZinfo^.bias;
   tzid := CompTimeZoneID(pTZinfo, lpFileTime, islocal);
 
-  if( tzid = TIME_ZONE_ID_INVALID) then
+  if (tzid = TIME_ZONE_ID_INVALID) then
   begin
     Result := False;
     Exit;
@@ -187,9 +190,7 @@ begin
   Result := True;
 end;
 
-function SystemTimeToTzSpecificLocalTime(
-  lpTimeZoneInformation: PTimeZoneInformation;
-  lpUniversalTime, lpLocalTime: PSystemTime): BOOL;
+function SystemTimeToTzSpecificLocalTime(lpTimeZoneInformation: PTimeZoneInformation; lpUniversalTime, lpLocalTime: PSystemTime): BOOL;
 var
   ft: TFileTime;
   lBias: LongInt;
@@ -197,12 +198,12 @@ var
   tzinfo: TTimeZoneInformation;
 begin
   if (lpTimeZoneInformation <> nil) then
-    tzinfo := lpTimeZoneInformation^ else
-    if (GetTimeZoneInformation(tzinfo) = TIME_ZONE_ID_INVALID) then
-    begin
-      Result := False;
-      Exit;
-    end;
+    tzinfo := lpTimeZoneInformation^
+  else if (GetTimeZoneInformation(tzinfo) = TIME_ZONE_ID_INVALID) then
+  begin
+    Result := False;
+    Exit;
+  end;
 
   if (not SystemTimeToFileTime(lpUniversalTime^, ft)) then
   begin
@@ -221,9 +222,7 @@ begin
   Result := FileTimeToSystemTime(ft, lpLocalTime^);
 end;
 
-function TzSpecificLocalTimeToSystemTime(
-    const lpTimeZoneInformation: PTimeZoneInformation;
-    const lpLocalTime: PSystemTime; lpUniversalTime: PSystemTime): BOOL;
+function TzSpecificLocalTimeToSystemTime(const lpTimeZoneInformation: PTimeZoneInformation; const lpLocalTime: PSystemTime; lpUniversalTime: PSystemTime): BOOL;
 var
   ft: TFileTime;
   lBias: LongInt;
@@ -232,12 +231,11 @@ var
 begin
   if (lpTimeZoneInformation <> nil) then
     tzinfo := lpTimeZoneInformation^
-  else
-    if (GetTimeZoneInformation(tzinfo) = TIME_ZONE_ID_INVALID) then
-    begin
-      Result := False;
-      Exit;
-    end;
+  else if (GetTimeZoneInformation(tzinfo) = TIME_ZONE_ID_INVALID) then
+  begin
+    Result := False;
+    Exit;
+  end;
 
   if (not SystemTimeToFileTime(lpLocalTime^, ft)) then
   begin
@@ -256,17 +254,15 @@ begin
   Result := FileTimeToSystemTime(ft, lpUniversalTime^);
 end;
 {$ELSE}
-function TzSpecificLocalTimeToSystemTime(
-  lpTimeZoneInformation: PTimeZoneInformation;
-  lpLocalTime, lpUniversalTime: PSystemTime): BOOL; stdcall; external 'kernel32.dll';
 
-function SystemTimeToTzSpecificLocalTime(
-  lpTimeZoneInformation: PTimeZoneInformation;
-  lpUniversalTime, lpLocalTime: PSystemTime): BOOL; stdcall; external 'kernel32.dll';
+function TzSpecificLocalTimeToSystemTime(lpTimeZoneInformation: PTimeZoneInformation; lpLocalTime, lpUniversalTime: PSystemTime): BOOL; stdcall; external 'kernel32.dll';
+
+function SystemTimeToTzSpecificLocalTime(lpTimeZoneInformation: PTimeZoneInformation; lpUniversalTime, lpLocalTime: PSystemTime): BOOL; stdcall; external 'kernel32.dll';
 {$ENDIF WINDOWSNT_COMPATIBILITY}
 {$ENDIF MACOS}
 
 {$IFDEF HAS_TTIMEZONE}
+
 function JavaToDelphiDateTime(const dt: int64): TDateTime;
 var
   univTime: TDateTime;
@@ -276,18 +272,19 @@ begin
   if DateOf(univTime) = 0 then
     Exit(0);
 
-  Result := TTimeZone.Local.ToLocalTime(univTime);
+  Result := TTimeZone.local.ToLocalTime(univTime);
 end;
 
 function DelphiToJavaDateTime(const dt: TDateTime): int64;
 var
   univTime: TDateTime;
 begin
-  univTime := TTimeZone.Local.ToUniversalTime(dt);
+  univTime := TTimeZone.local.ToUniversalTime(dt);
 
   Result := Round((univTime - UnixDateDelta) * 86400000);
 end;
 {$ELSE}
+
 function JavaToDelphiDateTime(const dt: int64): TDateTime;
 var
   t: TSystemTime;
@@ -308,6 +305,7 @@ end;
 {$ENDIF}
 
 {$IFDEF UNIX}
+
 function GetTimeBias: integer;
 var
   TimeVal: TTimeVal;
@@ -317,14 +315,18 @@ begin
   Result := TimeZone.tz_minuteswest;
 end;
 {$ELSE}
+
 function GetTimeBias: integer;
 var
-  tzi : TTimeZoneInformation;
+  tzi: TTimeZoneInformation;
 begin
   case GetTimeZoneInformation(tzi) of
-    TIME_ZONE_ID_UNKNOWN : Result := tzi.Bias;
-    TIME_ZONE_ID_STANDARD: Result := tzi.Bias + tzi.StandardBias;
-    TIME_ZONE_ID_DAYLIGHT: Result := tzi.Bias + tzi.DaylightBias;
+    TIME_ZONE_ID_UNKNOWN:
+      Result := tzi.Bias;
+    TIME_ZONE_ID_STANDARD:
+      Result := tzi.Bias + tzi.StandardBias;
+    TIME_ZONE_ID_DAYLIGHT:
+      Result := tzi.Bias + tzi.DaylightBias;
   else
     Result := 0;
   end;
@@ -333,12 +335,10 @@ end;
 
 function ISO8601DateToJavaDateTime(const str: string; var ms: Int64): Boolean;
 type
-  TState = (
-    stStart, stYear, stMonth, stWeek, stWeekDay, stDay, stDayOfYear,
-    stHour, stMin, stSec, stMs, stUTC, stGMTH, stGMTM,
-    stGMTend, stEnd);
+  TState = (stStart, stYear, stMonth, stWeek, stWeekDay, stDay, stDayOfYear, stHour, stMin, stSec, stMs, stUTC, stGMTH, stGMTM, stGMTend, stEnd);
 
   TPerhaps = (yes, no, perhaps);
+
   TDateTimeInfo = record
     year: Word;
     month: Word;
@@ -355,12 +355,14 @@ type
 
 {$IFNDEF UNICODE}
   PSOChar = PWideChar;
+
   SOChar = WideChar;
 {$ELSE}
+
   SOChar = Char;
+
   PSOChar = PChar;
 {$ENDIF}
-
 var
   p: PSOChar;
   state: TState;
@@ -376,7 +378,8 @@ var
     begin
       Result := True;
       v := v * 10 + Ord(c) - Ord('0');
-    end else
+    end
+    else
       Result := False;
   end;
 
@@ -393,89 +396,95 @@ begin
   havetz := False;
 
   while true do
-  case state of
-    stStart:
-      case p^ of
-        '0'..'9': state := stYear;
-        'T', 't':
-          begin
-            state := stHour;
-            pos := 0;
-            inc(p);
-            havedate := False;
-          end;
-      else
-        goto error;
-      end;
-    stYear:
-      case pos of
-        0..1,3:
-              if get(st.year, p^) then
-              begin
-                Inc(pos);
-                Inc(p);
-              end else
-                goto error;
-        2:    case p^ of
-                '0'..'9':
-                  begin
-                    st.year := st.year * 10 + ord(p^) - ord('0');
-                    Inc(pos);
-                    Inc(p);
-                  end;
-                ':':
-                  begin
-                    havedate := false;
-                    st.hour := st.year;
-                    st.year := 0;
-                    inc(p);
-                    pos := 0;
-                    state := stMin;
-                    sep := yes;
-                  end;
-              else
-                goto error;
-              end;
-        4: case p^ of
-             '-': begin
-                    pos := 0;
-                    Inc(p);
-                    sep := yes;
-                    state := stMonth;
-                  end;
-             '0'..'9':
-                  begin
-                    sep := no;
-                    pos := 0;
-                    state := stMonth;
-                  end;
-             'W', 'w' :
-                  begin
-                    pos := 0;
-                    Inc(p);
-                    state := stWeek;
-                  end;
-             'T', 't', ' ':
-                  begin
-                    state := stHour;
-                    pos := 0;
-                    inc(p);
-                    st.month := 1;
-                    st.day := 1;
-                  end;
-             #0:
-                  begin
-                    st.month := 1;
-                    st.day := 1;
-                    state := stEnd;
-                  end;
-           else
-             goto error;
-           end;
-      end;
-    stMonth:
-      case pos of
-        0:  case p^ of
+    case state of
+      stStart:
+        case p^ of
+          '0'..'9':
+            state := stYear;
+          'T', 't':
+            begin
+              state := stHour;
+              pos := 0;
+              inc(p);
+              havedate := False;
+            end;
+        else
+          goto error;
+        end;
+      stYear:
+        case pos of
+          0..1, 3:
+            if get(st.year, p^) then
+            begin
+              Inc(pos);
+              Inc(p);
+            end
+            else
+              goto error;
+          2:
+            case p^ of
+              '0'..'9':
+                begin
+                  st.year := st.year * 10 + ord(p^) - ord('0');
+                  Inc(pos);
+                  Inc(p);
+                end;
+              ':':
+                begin
+                  havedate := false;
+                  st.hour := st.year;
+                  st.year := 0;
+                  inc(p);
+                  pos := 0;
+                  state := stMin;
+                  sep := yes;
+                end;
+            else
+              goto error;
+            end;
+          4:
+            case p^ of
+              '-':
+                begin
+                  pos := 0;
+                  Inc(p);
+                  sep := yes;
+                  state := stMonth;
+                end;
+              '0'..'9':
+                begin
+                  sep := no;
+                  pos := 0;
+                  state := stMonth;
+                end;
+              'W', 'w':
+                begin
+                  pos := 0;
+                  Inc(p);
+                  state := stWeek;
+                end;
+              'T', 't', ' ':
+                begin
+                  state := stHour;
+                  pos := 0;
+                  inc(p);
+                  st.month := 1;
+                  st.day := 1;
+                end;
+              #0:
+                begin
+                  st.month := 1;
+                  st.day := 1;
+                  state := stEnd;
+                end;
+            else
+              goto error;
+            end;
+        end;
+      stMonth:
+        case pos of
+          0:
+            case p^ of
               '0'..'9':
                 begin
                   st.month := ord(p^) - ord('0');
@@ -491,432 +500,498 @@ begin
             else
               goto error;
             end;
-        1:  if get(st.month, p^) then
+          1:
+            if get(st.month, p^) then
             begin
               Inc(pos);
               Inc(p);
-            end else
+            end
+            else
               goto error;
-        2: case p^ of
-             '-':
-                  if (sep in [yes, perhaps])  then
-                  begin
-                    pos := 0;
-                    Inc(p);
-                    state := stDay;
-                    sep := yes;
-                  end else
-                    goto error;
-             '0'..'9':
-                  if sep in [no, perhaps] then
-                  begin
-                    pos := 0;
-                    state := stDay;
-                    sep := no;
-                  end else
-                  begin
-                    st.dayofyear := st.month * 10 + Ord(p^) - Ord('0');
-                    st.month := 0;
-                    inc(p);
-                    pos := 3;
-                    state := stDayOfYear;
-                  end;
-             'T', 't', ' ':
-                  begin
-                    state := stHour;
-                    pos := 0;
-                    inc(p);
-                    st.day := 1;
-                 end;
-             #0:
-               begin
-                 st.day := 1;
-                 state := stEnd;
-               end;
-           else
-             goto error;
-           end;
-      end;
-    stDay:
-      case pos of
-        0:  if get(st.day, p^) then
-            begin
-              Inc(pos);
-              Inc(p);
-            end else
+          2:
+            case p^ of
+              '-':
+                if (sep in [yes, perhaps]) then
+                begin
+                  pos := 0;
+                  Inc(p);
+                  state := stDay;
+                  sep := yes;
+                end
+                else
+                  goto error;
+              '0'..'9':
+                if sep in [no, perhaps] then
+                begin
+                  pos := 0;
+                  state := stDay;
+                  sep := no;
+                end
+                else
+                begin
+                  st.dayofyear := st.month * 10 + Ord(p^) - Ord('0');
+                  st.month := 0;
+                  inc(p);
+                  pos := 3;
+                  state := stDayOfYear;
+                end;
+              'T', 't', ' ':
+                begin
+                  state := stHour;
+                  pos := 0;
+                  inc(p);
+                  st.day := 1;
+                end;
+              #0:
+                begin
+                  st.day := 1;
+                  state := stEnd;
+                end;
+            else
               goto error;
-        1:  if get(st.day, p^) then
+            end;
+        end;
+      stDay:
+        case pos of
+          0:
+            if get(st.day, p^) then
             begin
               Inc(pos);
               Inc(p);
-            end else
-            if sep in [no, perhaps] then
+            end
+            else
+              goto error;
+          1:
+            if get(st.day, p^) then
+            begin
+              Inc(pos);
+              Inc(p);
+            end
+            else if sep in [no, perhaps] then
             begin
               st.dayofyear := st.month * 10 + st.day;
               st.day := 0;
               st.month := 0;
               state := stDayOfYear;
-            end else
+            end
+            else
               goto error;
 
-        2: case p^ of
-             'T', 't', ' ':
-                  begin
-                    pos := 0;
-                    Inc(p);
-                    state := stHour;
-                  end;
-             #0:  state := stEnd;
-           else
-             goto error;
-           end;
-      end;
-    stDayOfYear:
-      begin
-        if (st.dayofyear <= 0) then goto error;
-        case p^ of
-          'T', 't', ' ':
-               begin
-                 pos := 0;
-                 Inc(p);
-                 state := stHour;
-               end;
-          #0:  state := stEnd;
-        else
-          goto error;
-        end;
-      end;
-    stWeek:
-      begin
-        case pos of
-          0..1: if get(st.week, p^) then
+          2:
+            case p^ of
+              'T', 't', ' ':
                 begin
-                  inc(pos);
-                  inc(p);
-                end else
-                  goto error;
-          2: case p^ of
-               '-': if (sep in [yes, perhaps]) then
-                    begin
-                      Inc(p);
-                      state := stWeekDay;
-                      sep := yes;
-                    end else
-                      goto error;
-               '1'..'7':
-                    if sep in [no, perhaps] then
-                    begin
-                      state := stWeekDay;
-                      sep := no;
-                    end else
-                      goto error;
-             else
-               goto error;
-             end;
+                  pos := 0;
+                  Inc(p);
+                  state := stHour;
+                end;
+              #0:
+                state := stEnd;
+            else
+              goto error;
+            end;
         end;
-      end;
-    stWeekDay:
-      begin
-        if (st.week > 0) and get(st.weekday, p^) then
+      stDayOfYear:
         begin
-          inc(p);
-          v := st.year - 1;
-          v := ((v * 365) + (v div 4) - (v div 100) + (v div 400)) mod 7 + 1;
-          st.dayofyear := (st.weekday - v) + ((st.week) * 7) + 1;
-          if v <= 4 then dec(st.dayofyear, 7);
+          if (st.dayofyear <= 0) then
+            goto error;
           case p^ of
             'T', 't', ' ':
-                 begin
-                   pos := 0;
-                   Inc(p);
-                   state := stHour;
-                 end;
-            #0:  state := stEnd;
+              begin
+                pos := 0;
+                Inc(p);
+                state := stHour;
+              end;
+            #0:
+              state := stEnd;
           else
             goto error;
           end;
-        end else
-          goto error;
-      end;
-    stHour:
-      case pos of
-        0:    case p^ of
-                '0'..'9':
-                    if get(st.hour, p^) then
-                    begin
-                      inc(pos);
-                      inc(p);
-                      end else
-                        goto error;
-                '-':
-                  begin
-                    inc(p);
-                    state := stMin;
-                  end;
-              else
-                goto error;
-              end;
-        1:    if get(st.hour, p^) then
+        end;
+      stWeek:
+        begin
+          case pos of
+            0..1:
+              if get(st.week, p^) then
               begin
                 inc(pos);
                 inc(p);
-              end else
+              end
+              else
                 goto error;
-        2: case p^ of
-             ':': if sep in [yes, perhaps] then
+            2:
+              case p^ of
+                '-':
+                  if (sep in [yes, perhaps]) then
                   begin
-                    sep := yes;
-                    pos := 0;
                     Inc(p);
-                    state := stMin;
-                  end else
+                    state := stWeekDay;
+                    sep := yes;
+                  end
+                  else
                     goto error;
-             ',', '.':
+                '1'..'7':
+                  if sep in [no, perhaps] then
+                  begin
+                    state := stWeekDay;
+                    sep := no;
+                  end
+                  else
+                    goto error;
+              else
+                goto error;
+              end;
+          end;
+        end;
+      stWeekDay:
+        begin
+          if (st.week > 0) and get(st.weekday, p^) then
+          begin
+            inc(p);
+            v := st.year - 1;
+            v := ((v * 365) + (v div 4) - (v div 100) + (v div 400)) mod 7 + 1;
+            st.dayofyear := (st.weekday - v) + ((st.week) * 7) + 1;
+            if v <= 4 then
+              dec(st.dayofyear, 7);
+            case p^ of
+              'T', 't', ' ':
+                begin
+                  pos := 0;
+                  Inc(p);
+                  state := stHour;
+                end;
+              #0:
+                state := stEnd;
+            else
+              goto error;
+            end;
+          end
+          else
+            goto error;
+        end;
+      stHour:
+        case pos of
+          0:
+            case p^ of
+              '0'..'9':
+                if get(st.hour, p^) then
+                begin
+                  inc(pos);
+                  inc(p);
+                end
+                else
+                  goto error;
+              '-':
+                begin
+                  inc(p);
+                  state := stMin;
+                end;
+            else
+              goto error;
+            end;
+          1:
+            if get(st.hour, p^) then
+            begin
+              inc(pos);
+              inc(p);
+            end
+            else
+              goto error;
+          2:
+            case p^ of
+              ':':
+                if sep in [yes, perhaps] then
+                begin
+                  sep := yes;
+                  pos := 0;
+                  Inc(p);
+                  state := stMin;
+                end
+                else
+                  goto error;
+              ',', '.':
                 begin
                   Inc(p);
                   state := stMs;
                 end;
-             '+':
-               if havedate then
-               begin
-                 state := stGMTH;
-                 pos := 0;
-                 v := 0;
-                 inc(p);
-               end else
-                 goto error;
-             '-':
-               if havedate then
-               begin
-                 state := stGMTH;
-                 pos := 0;
-                 v := 0;
-                 inc(p);
-                 inctz := True;
-               end else
-                 goto error;
-             'Z', 'z':
-                  if havedate then
-                    state := stUTC else
-                    goto error;
-             '0'..'9':
-                  if sep in [no, perhaps] then
-                  begin
-                    pos := 0;
-                    state := stMin;
-                    sep := no;
-                  end else
-                    goto error;
-             #0:  state := stEnd;
-           else
-             goto error;
-           end;
-      end;
-    stMin:
-      case pos of
-        0: case p^ of
-             '0'..'9':
+              '+':
+                if havedate then
+                begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
+                  inc(p);
+                end
+                else
+                  goto error;
+              '-':
+                if havedate then
+                begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
+                  inc(p);
+                  inctz := True;
+                end
+                else
+                  goto error;
+              'Z', 'z':
+                if havedate then
+                  state := stUTC
+                else
+                  goto error;
+              '0'..'9':
+                if sep in [no, perhaps] then
+                begin
+                  pos := 0;
+                  state := stMin;
+                  sep := no;
+                end
+                else
+                  goto error;
+              #0:
+                state := stEnd;
+            else
+              goto error;
+            end;
+        end;
+      stMin:
+        case pos of
+          0:
+            case p^ of
+              '0'..'9':
                 if get(st.minute, p^) then
                 begin
                   inc(pos);
                   inc(p);
-                end else
+                end
+                else
                   goto error;
-             '-':
+              '-':
                 begin
                   inc(p);
                   state := stSec;
                 end;
-           else
-             goto error;
-           end;
-        1: if get(st.minute, p^) then
-           begin
-             inc(pos);
-             inc(p);
-           end else
-             goto error;
-        2: case p^ of
-             ':': if sep in [yes, perhaps] then
-                  begin
-                    pos := 0;
-                    Inc(p);
-                    state := stSec;
-                    sep := yes;
-                  end else
-                    goto error;
-             ',', '.':
+            else
+              goto error;
+            end;
+          1:
+            if get(st.minute, p^) then
+            begin
+              inc(pos);
+              inc(p);
+            end
+            else
+              goto error;
+          2:
+            case p^ of
+              ':':
+                if sep in [yes, perhaps] then
+                begin
+                  pos := 0;
+                  Inc(p);
+                  state := stSec;
+                  sep := yes;
+                end
+                else
+                  goto error;
+              ',', '.':
                 begin
                   Inc(p);
                   state := stMs;
                 end;
-             '+':
-               if havedate then
-               begin
-                 state := stGMTH;
-                 pos := 0;
-                 v := 0;
-                 inc(p);
-               end else
-                 goto error;
-             '-':
-               if havedate then
-               begin
-                 state := stGMTH;
-                 pos := 0;
-                 v := 0;
-                 inc(p);
-                 inctz := True;
-               end else
-                 goto error;
-             'Z', 'z':
-                  if havedate then
-                    state := stUTC else
-                    goto error;
-             '0'..'9':
-                  if sep in [no, perhaps] then
-                  begin
-                    pos := 0;
-                    state := stSec;
-                  end else
-                    goto error;
-             #0:  state := stEnd;
-           else
-             goto error;
-           end;
-      end;
-    stSec:
-      case pos of
-        0..1: if get(st.second, p^) then
-              begin
-                inc(pos);
-                inc(p);
-              end else
-                goto error;
-        2:    case p^ of
-               ',', '.':
-                  begin
-                    Inc(p);
-                    state := stMs;
-                  end;
-               '+':
-                 if havedate then
-                 begin
-                   state := stGMTH;
-                   pos := 0;
-                   v := 0;
-                   inc(p);
-                 end else
-                   goto error;
-               '-':
-                 if havedate then
-                 begin
-                   state := stGMTH;
-                   pos := 0;
-                   v := 0;
-                   inc(p);
-                   inctz := True;
-                 end else
-                   goto error;
-               'Z', 'z':
-                    if havedate then
-                      state := stUTC else
-                      goto error;
-               #0: state := stEnd;
-              else
-               goto error;
-              end;
-      end;
-    stMs:
-      case p^ of
-        '0'..'9':
-        begin
-          st.ms := st.ms * 10 + ord(p^) - ord('0');
-          inc(p);
-        end;
-        '+':
-          if havedate then
-          begin
-            state := stGMTH;
-            pos := 0;
-            v := 0;
-            inc(p);
-          end else
-            goto error;
-        '-':
-          if havedate then
-          begin
-            state := stGMTH;
-            pos := 0;
-            v := 0;
-            inc(p);
-            inctz := True;
-          end else
-            goto error;
-        'Z', 'z':
-             if havedate then
-               state := stUTC else
-               goto error;
-        #0: state := stEnd;
-      else
-        goto error;
-      end;
-    stUTC: // = GMT 0
-      begin
-        havetz := True;
-        inc(p);
-        if p^ = #0 then
-          Break else
-          goto error;
-      end;
-    stGMTH:
-      begin
-        havetz := True;
-        case pos of
-          0..1: if get(v, p^) then
+              '+':
+                if havedate then
                 begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
                   inc(p);
-                  inc(pos);
-                end else
+                end
+                else
                   goto error;
-          2:
-            begin
-              st.bias := v * 60;
-              case p^ of
-                ':': if sep in [yes, perhaps] then
-                     begin
-                       state := stGMTM;
-                       inc(p);
-                       pos := 0;
-                       v := 0;
-                       sep := yes;
-                     end else
-                       goto error;
-                '0'..'9':
-                     begin
-                       state := stGMTM;
-                       pos := 1;
-                       sep := no;
-                       inc(p);
-                       v := ord(p^) - ord('0');
-                     end;
-                #0: state := stGMTend;
-              else
-                goto error;
-              end;
-
+              '-':
+                if havedate then
+                begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
+                  inc(p);
+                  inctz := True;
+                end
+                else
+                  goto error;
+              'Z', 'z':
+                if havedate then
+                  state := stUTC
+                else
+                  goto error;
+              '0'..'9':
+                if sep in [no, perhaps] then
+                begin
+                  pos := 0;
+                  state := stSec;
+                end
+                else
+                  goto error;
+              #0:
+                state := stEnd;
+            else
+              goto error;
             end;
         end;
-      end;
-    stGMTM:
-      case pos of
-        0..1:  if get(v, p^) then
-               begin
-                 inc(p);
-                 inc(pos);
-               end else
-                 goto error;
-        2:  case p^ of
+      stSec:
+        case pos of
+          0..1:
+            if get(st.second, p^) then
+            begin
+              inc(pos);
+              inc(p);
+            end
+            else
+              goto error;
+          2:
+            case p^ of
+              ',', '.':
+                begin
+                  Inc(p);
+                  state := stMs;
+                end;
+              '+':
+                if havedate then
+                begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
+                  inc(p);
+                end
+                else
+                  goto error;
+              '-':
+                if havedate then
+                begin
+                  state := stGMTH;
+                  pos := 0;
+                  v := 0;
+                  inc(p);
+                  inctz := True;
+                end
+                else
+                  goto error;
+              'Z', 'z':
+                if havedate then
+                  state := stUTC
+                else
+                  goto error;
+              #0:
+                state := stEnd;
+            else
+              goto error;
+            end;
+        end;
+      stMs:
+        case p^ of
+          '0'..'9':
+            begin
+              st.ms := st.ms * 10 + ord(p^) - ord('0');
+              inc(p);
+            end;
+          '+':
+            if havedate then
+            begin
+              state := stGMTH;
+              pos := 0;
+              v := 0;
+              inc(p);
+            end
+            else
+              goto error;
+          '-':
+            if havedate then
+            begin
+              state := stGMTH;
+              pos := 0;
+              v := 0;
+              inc(p);
+              inctz := True;
+            end
+            else
+              goto error;
+          'Z', 'z':
+            if havedate then
+              state := stUTC
+            else
+              goto error;
+          #0:
+            state := stEnd;
+        else
+          goto error;
+        end;
+      stUTC: // = GMT 0
+        begin
+          havetz := True;
+          inc(p);
+          if p^ = #0 then
+            Break
+          else
+            goto error;
+        end;
+      stGMTH:
+        begin
+          havetz := True;
+          case pos of
+            0..1:
+              if get(v, p^) then
+              begin
+                inc(p);
+                inc(pos);
+              end
+              else
+                goto error;
+            2:
+              begin
+                st.bias := v * 60;
+                case p^ of
+                  ':':
+                    if sep in [yes, perhaps] then
+                    begin
+                      state := stGMTM;
+                      inc(p);
+                      pos := 0;
+                      v := 0;
+                      sep := yes;
+                    end
+                    else
+                      goto error;
+                  '0'..'9':
+                    begin
+                      state := stGMTM;
+                      pos := 1;
+                      sep := no;
+                      inc(p);
+                      v := ord(p^) - ord('0');
+                    end;
+                  #0:
+                    state := stGMTend;
+                else
+                  goto error;
+                end;
+
+              end;
+          end;
+        end;
+      stGMTM:
+        case pos of
+          0..1:
+            if get(v, p^) then
+            begin
+              inc(p);
+              inc(pos);
+            end
+            else
+              goto error;
+          2:
+            case p^ of
               #0:
                 begin
                   state := stGMTend;
@@ -925,22 +1000,22 @@ begin
             else
               goto error;
             end;
-      end;
-    stGMTend:
-      begin
-        if not inctz then
-          st.Bias := -st.bias;
-        Break;
-      end;
-    stEnd:
-    begin
+        end;
+      stGMTend:
+        begin
+          if not inctz then
+            st.Bias := -st.bias;
+          Break;
+        end;
+      stEnd:
+        begin
 
-      Break;
+          Break;
+        end;
     end;
-  end;
 
-  if (st.hour >= 24) or (st.minute >= 60) or (st.second >= 60) or (st.ms >= 1000) or (st.week > 53)
-    then goto error;
+  if (st.hour >= 24) or (st.minute >= 60) or (st.second >= 60) or (st.ms >= 1000) or (st.week > 53) then
+    goto error;
 
   if not havetz then
     st.bias := GetTimeBias;
@@ -954,16 +1029,15 @@ begin
       if not (st.month in [1..12]) or (DayTable^[st.month] < st.day) then
         goto error;
 
-      for v := 1 to  st.month - 1 do
+      for v := 1 to st.month - 1 do
         Inc(ms, DayTable^[v] * 86400000);
     end;
     dec(st.year);
-    ms := ms + (int64((st.year * 365) + (st.year div 4) - (st.year div 100) +
-      (st.year div 400) + st.day + st.dayofyear - 719163) * 86400000);
+    ms := ms + (int64((st.year * 365) + (st.year div 4) - (st.year div 100) + (st.year div 400) + st.day + st.dayofyear - 719163) * 86400000);
   end;
 
- Result := True;
- Exit;
+  Result := True;
+  Exit;
 error:
   Result := False;
 end;
@@ -978,7 +1052,7 @@ begin
     dt := JavaToDelphiDateTime(ms)
 end;
 
-function DelphiDateTimeToISO8601Date(dt: TDateTime): String;
+function DelphiDateTimeToISO8601Date(dt: TDateTime): string;
 const
   FMT_DATE = '%.4d-%.2d-%.2d';
   FMT_TIME = 'T%.2d:%.2d:%.2d.%.3d';
@@ -996,11 +1070,11 @@ begin
     bias := GetTimeBias;
     tzh := Abs(bias) div 60;
     tzm := Abs(bias) - tzh * 60;
-    if Bias > 0 then
-      sign := '-' else
+    if bias > 0 then
+      sign := '-'
+    else
       sign := '+';
-    Result := Format(FMT_DATE + FMT_TIME + FMT_ZONE,
-      [year, month, day, hour, min, sec, msec, sign, tzh, tzm]);
+    Result := Format(FMT_DATE + FMT_TIME + FMT_ZONE, [year, month, day, hour, min, sec, msec, sign, tzh, tzm]);
   except
     if dt = 0 then
       raise
@@ -1027,7 +1101,7 @@ begin
 {$ENDIF}
 end;
 
-class function TJsonUtil.UnMarshal(AClassType: TClass;AJsonText: String): TObject;
+class function TJsonUtil.UnMarshal(AClassType: TClass; AJsonText: string): TObject;
 begin
 {$IFDEF SUPPORTS_GENERICS}
   Result := TJsonUtilGenerics.UnMarshal(AClassType, AJsonText);
@@ -1037,10 +1111,12 @@ begin
 end;
 
 {$IFDEF SUPPORTS_GENERICS}
-class function TJsonUtil.UnMarshal<T>(AJsonText: String): T;
+class function TJsonUtil.UnMarshal<t>(AJsonText: string): t;
 begin
-  Result := TJsonUtilGenerics.UnMarshal<T>(AJsonText);
+  Result := TJsonUtilGenerics.UnMarshal<t>(AJsonText);
 end;
 {$ENDIF}
 
 end.
+
+
